@@ -1,0 +1,9 @@
+dataset_type,item_id,track,condition,status,correct_facts,total_facts,quality_pct,wer_pct,word_errors,reference_words,preparation_time_s,critical_error
+synthetic_smoke_test,audio_01,audio,ai,success,1,2,50.0,12.5,1,8,5,True
+synthetic_smoke_test,audio_01,audio,manual,success,2,2,100.0,0.0,0,8,90,False
+synthetic_smoke_test,audio_02,audio,ai,success,3,3,100.0,0.0,0,9,6,False
+synthetic_smoke_test,audio_02,audio,manual,success,3,3,100.0,11.111111,1,9,110,False
+synthetic_smoke_test,image_01,image,ai,success,1,2,50.0,,,,4,False
+synthetic_smoke_test,image_01,image,manual,success,2,2,100.0,,,,80,False
+synthetic_smoke_test,image_02,image,ai,failed,0,3,0.0,,,,10,False
+synthetic_smoke_test,image_02,image,manual,success,2,3,66.666667,,,,95,False

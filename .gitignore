@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+._*
+
+# Python environments and caches
+.venv/
+venv/
+env/
+.conda/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+secrets/
+
+# Temporary files and logs
+*.log
+*.tmp
+*.bak
+.cache/
+tmp/
+
+# Large source data and model weights
+/data/raw/
+/models/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# Temporary experiment runs
+/results/runs/

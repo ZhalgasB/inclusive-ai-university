@@ -1,0 +1,8 @@
+{
+  "dataset_type": "synthetic_smoke_test",
+  "python_version": "3.12.15",
+  "data_sha256": "ba1fd1011484d49bf1340b6b663a7ff2a6c88f37780cd87b1d7643e381131cbe",
+  "config_sha256": "71cc247fb3b7fcb28fee333c38095d2f7547e2eb97d8c45536b42d8dbf8dbe45",
+  "script_sha256": "988ca0420bb3eaa2a9ddcb9b13a28b504b73431468008f24b0dfce2f3f8a9934",
+  "wer_normalization": "Unicode words; casefold; punctuation discarded"
+}

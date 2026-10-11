@@ -1,0 +1,5 @@
+dataset_type,track,condition,n_attempts,n_successes,mean_quality_pct,wer_pct_successful_audio,median_preparation_time_s_successes,critical_error_rate_pct,failure_rate_pct,guardrails_pass
+synthetic_smoke_test,audio,ai,2,2,75.0,5.882353,5.5,50.0,0.0,False
+synthetic_smoke_test,audio,manual,2,2,100.0,5.882353,100.0,0.0,0.0,True
+synthetic_smoke_test,image,ai,2,1,25.0,,4,0.0,50.0,False
+synthetic_smoke_test,image,manual,2,2,83.333333,,87.5,0.0,0.0,True

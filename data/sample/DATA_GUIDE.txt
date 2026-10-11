@@ -1,0 +1,66 @@
+SYNTHETIC SAMPLE — FOR PIPELINE TESTING ONLY
+
+All eight records, including times and annotations, are invented examples.
+No actual model or participant produced these outputs. There are no underlying
+audio/image assets for this synthetic fixture. Four fictional materials each
+have two conditions: manual and ai. Do not cite these values as study findings.
+
+The program rescores human annotations; it does not evaluate semantic accuracy
+automatically, transcribe audio, describe images, or call an AI service.
+
+Annotation fields
+- reference_facts: key facts established before evaluating either condition.
+- fact_scores: one human-assigned 0/1 score per fact, in the same order.
+  Use 1 only when the output preserves that fact correctly, otherwise 0.
+- critical_error: a human-assigned flag for a misleading error that could cause
+  a harmful action or missed requirement, under a predefined annotation rubric.
+  The wrong lecture time in audio_01 is an intentional test example.
+- preparation_time_s: end-to-end time to prepare the saved output; for a failed
+  attempt, elapsed time until failure. Sample values are invented, not measured
+  by benchmark.py. The runtime of rescoring is not AI response latency.
+- status: success or failed. Failed rows have empty output and all fact scores 0.
+  Their critical_error flag is false because no content was produced; their
+  failure is counted by the separate failure guardrail.
+
+Metrics (computed separately for audio/image and manual/ai)
+- Q_i = 100 * sum(fact_scores_i) / count(reference_facts_i).
+- mean_quality_pct is the arithmetic mean of Q_i over all attempts, including
+  failed attempts scored as zero. Every material has equal weight.
+- WER = 100 * word edit distance / reference word count. The edit distance
+  counts substitutions, deletions and insertions. Words are casefolded and
+  punctuation is discarded. WER can exceed 100% because of insertions.
+  Group WER pools error and reference-word counts across successful audio rows.
+  Image WER and failed-output WER are empty, not zero; consult failure rate.
+- Median preparation time uses successful attempts only.
+- Critical error rate = 100 * outputs flagged critical / all attempts.
+- Failure rate = 100 * failed attempts / all attempts.
+- guardrails_pass means both rates meet the configured limits (zero by default).
+  It is a descriptive sample check, not proof of accessibility or safety.
+
+Expected smoke-test output: 8 item rows and 4 summary rows.
+Mean Q: audio/manual=100; audio/ai=75; image/manual=83.333333; image/ai=25.
+Audio WER (both conditions): 1 error / 17 words * 100 = 5.882353%.
+AI audio critical-error rate=50%; AI image failure rate=50%.
+These intentional failures exercise the checks; the script should still finish.
+
+For the real pilot, collect and preserve the original permitted materials,
+separate reference annotations, manual baseline outputs, raw AI outputs,
+prompts, model/version, date and measured preparation times. Include every
+attempt, including failures. Agree on critical-error criteria before rating.
+Use a new data file and set dataset_type to research only for actual study data.
+Passing the demo does not test an external AI tool or confirm the hypothesis.
+
+Configuration and launch
+Paths inside configs/config.json are relative to the repository root.
+Run from the repository root:
+python src/benchmark.py --config configs/config.json
+python -m unittest discover -s tests -v
+
+Outputs: results/item_metrics.csv, results/summary.csv, results/run_metadata.json.
+Metadata records SHA-256 hashes of the input, configuration and scoring script.
+With identical files and Python version, rescoring is deterministic; generation
+through a mutable online model is outside this reproducibility guarantee.
+
+Update README references from configs/config.yaml to configs/config.json.
+This fixture and scoring code are intended to be included under the project's
+chosen code license. External research data keep their original license terms.

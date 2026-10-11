@@ -1,0 +1,9 @@
+{
+  "dataset_type": "synthetic_smoke_test",
+  "data_path": "data/sample/annotations.jsonl",
+  "output_dir": "results",
+  "guardrails": {
+    "max_critical_error_rate_pct": 0,
+    "max_failure_rate_pct": 0
+  }
+}

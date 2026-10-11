@@ -1,0 +1,42 @@
+# Git, host environments and caches
+.git
+.venv
+venv
+env
+.conda
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.ipynb_checkpoints
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.cache
+
+# macOS and editor files
+**/.DS_Store
+**/._*
+.vscode
+.idea
+
+# Credentials and private data
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/credentials*.json
+secrets
+
+# Large assets and generated files
+data/raw
+models
+results
+tmp
+**/*.log
+**/*.tmp
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+**/*.onnx
