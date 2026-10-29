@@ -1,0 +1,5 @@
+# Paths are relative to the repository root, above configs/.
+benchmark_config: configs/config.json
+warmup_runs: 10
+measurement_runs: 100
+log_path: data/raw/test_run.jsonl
