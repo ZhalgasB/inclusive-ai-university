@@ -1,4 +1,4 @@
-"""Step 1: validate timing logs, exclude warm-up and flag (never delete) outliers."""
+"""Validate offline timing logs, retain errors/outliers, and export statistics with CI."""
 
 import argparse
 from datetime import datetime
@@ -6,6 +6,7 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -115,13 +116,107 @@ def prepare_measurements(raw):
     return measured, guardrails.reset_index()
 
 
+# 5. Summarize each run separately; do not treat runs as different algorithms.
+def summarize_statistics(measured, guardrails, bootstrap_resamples=2000, seed=42):
+    if type(bootstrap_resamples) is not int or bootstrap_resamples < 2:
+        raise ValueError("bootstrap_resamples must be an integer >= 2.")
+    if type(seed) is not int or seed < 0:
+        raise ValueError("seed must be a nonnegative integer.")
+
+    summaries = []
+    for key, group in measured.groupby(GROUP_COLUMNS, sort=False):
+        # Stable order makes bootstrap output independent of JSONL line order.
+        group = group.sort_values("iteration")
+        durations = group["duration_ms"].to_numpy(dtype=float)
+        success = group["status"].eq("success").to_numpy()
+        successful = durations[success]  # Includes ALL successful outliers.
+        n_success = len(successful)
+        total_ms = float(durations.sum())  # Includes time spent on failures.
+        summary = dict(zip(GROUP_COLUMNS, key))
+        summary.update({
+            "total_execution_ms": total_ms,
+            "mean_all_outcomes_ms": float(durations.mean()),
+            "mean_success_ms": float(successful.mean()) if n_success else np.nan,
+            "sd_success_ms": float(successful.std(ddof=1)) if n_success >= 2 else np.nan,
+            "compute_goodput_calls_per_s": 1000 * n_success / total_ms if total_ms > 0 else np.nan,
+        })
+        for percentile in (25, 50, 75, 95, 99):
+            summary[f"p{percentile}_success_ms"] = (
+                float(np.quantile(successful, percentile / 100, method="linear"))
+                if n_success else np.nan
+            )
+
+        # Percentile bootstrap: resample observed attempts WITH replacement.
+        # Latency CI is conditional on success; goodput resamples whole attempts.
+        # These exploratory CIs assume independent, identically distributed calls
+        # within a run. Serial correlation or drift can make them too narrow.
+        rng = np.random.default_rng(seed)
+        bootstrap_values = {}
+        latency_metrics = ["mean_success_ms", "p50_success_ms", "p95_success_ms", "p99_success_ms"]
+        for name in latency_metrics + ["compute_goodput_calls_per_s"]:
+            summary[f"{name}_ci95_low"] = np.nan
+            summary[f"{name}_ci95_high"] = np.nan
+        if n_success >= 2:
+            samples = rng.choice(successful, size=(bootstrap_resamples, n_success), replace=True)
+            bootstrap_values["mean_success_ms"] = samples.mean(axis=1)
+            quantiles = np.quantile(samples, [0.50, 0.95, 0.99], axis=1, method="linear")
+            for name, values in zip(latency_metrics[1:], quantiles):
+                bootstrap_values[name] = values
+            del samples
+        if len(durations) >= 2:
+            indices = rng.integers(0, len(durations), size=(bootstrap_resamples, len(durations)))
+            sampled_ms = durations[indices].sum(axis=1)
+            # Do not silently drop resamples with an undefined zero-time rate.
+            if np.all(sampled_ms > 0):
+                bootstrap_values["compute_goodput_calls_per_s"] = (
+                        1000 * success[indices].sum(axis=1) / sampled_ms
+                )
+        for name, values in bootstrap_values.items():
+            lower, upper = np.quantile(values, [0.025, 0.975], method="linear")
+            summary[f"{name}_ci95_low"] = float(lower)
+            summary[f"{name}_ci95_high"] = float(upper)
+        summary.update({
+            "bootstrap_resamples": bootstrap_resamples,
+            "bootstrap_seed": seed,
+            "ci_method": "within-run IID percentile bootstrap; latency conditional on success",
+            "quantile_method": "linear",
+            "sd_ddof": 1,
+        })
+        summaries.append(summary)
+    return guardrails.merge(pd.DataFrame(summaries), on=GROUP_COLUMNS, validate="one_to_one")
+
+
+# 6. Save working rows for plots and one summary row per run/workload.
+def analyze_log(input_path, output_dir, bootstrap_resamples=2000, seed=42):
+    raw = load_logs(input_path)
+    measured, guardrails = prepare_measurements(raw)
+    summary = summarize_statistics(measured, guardrails, bootstrap_resamples, seed)
+    output_dir = Path(output_dir)
+    measurements_path = output_dir / "measurements.csv"
+    summary_path = output_dir / "metrics_summary.csv"
+    if Path(input_path).resolve() in (measurements_path.resolve(), summary_path.resolve()):
+        raise ValueError("The output must not overwrite the input log.")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    exported = measured.copy()
+    exported["error"] = exported["error"].map(
+        lambda error: json.dumps(error, ensure_ascii=False) if error is not None else ""
+    )
+    exported.to_csv(measurements_path, index=False, encoding="utf-8", float_format="%.12g")
+    summary.to_csv(summary_path, index=False, encoding="utf-8", float_format="%.12g")
+    return raw, measured, summary
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=PROJECT_ROOT / "data/raw/test_run.jsonl")
+    parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "data/processed")
+    parser.add_argument("--bootstrap-resamples", type=int, default=2000)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     try:
-        raw = load_logs(args.input)
-        measured, guardrails = prepare_measurements(raw)
+        raw, measured, summary = analyze_log(
+            args.input, args.output_dir, args.bootstrap_resamples, args.seed
+        )
     except (OSError, ValueError, TypeError) as exc:
         parser.exit(1, f"Log processing error: {exc}\n")
 
@@ -132,11 +227,24 @@ def main():
     print(f"Warm-up errors (reported separately): {(warmup & raw['status'].eq('error')).sum()}")
     print(f"Benchmark records retained: {len(measured)}")
     print(f"Legacy measurement labels normalized: {raw['phase'].eq('measurement').sum()}")
-    print("\nPer-run guardrails and IQR flags:")
-    print(guardrails.to_string(index=False))
+    print("\nPer-run statistics (latency in ms; goodput in successful scoring calls/s):")
+    columns = [
+        "run_id", "attempts", "failed_runs", "execution_failure_rate_pct",
+        "latency_outliers", "mean_success_ms", "sd_success_ms", "p50_success_ms",
+        "p95_success_ms", "p99_success_ms", "compute_goodput_calls_per_s",
+        "mean_success_ms_ci95_low", "mean_success_ms_ci95_high",
+    ]
+    print(summary[columns].to_string(index=False))
+    print(f"\nBootstrap: {args.bootstrap_resamples} resamples, seed={args.seed}, 95% CI.")
+    print(f"Working measurements: {(args.output_dir / 'measurements.csv').resolve()}")
+    print(f"Summary including all CI bounds: {(args.output_dir / 'metrics_summary.csv').resolve()}")
     print("\nErrors and flagged outliers are retained. The raw file was not modified.")
     print("IQR flags show unusual durations; they do not establish the cause.")
     print("Durations measure offline scoring, not AI generation or preparation time.")
+    print("Goodput uses only measured function time, not wall-clock server RPS.")
+    print("CI assumes IID calls within each run; drift/correlation may underestimate uncertainty.")
+    print("With small groups (e.g. 100 calls), p99 and its CI describe a sparsely sampled tail.")
+    print("Blank CSV values mean undefined statistics, not zero. SD uses ddof=1.")
 
 
 if __name__ == "__main__":
