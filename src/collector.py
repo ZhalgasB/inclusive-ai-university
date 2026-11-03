@@ -33,7 +33,7 @@ def collect(target, rows, benchmark_config, settings):
     total = settings["warmup_runs"] + settings["measurement_runs"]
 
     for index in range(total):
-        phase = "warmup" if index < settings["warmup_runs"] else "measurement"
+        phase = "warmup" if index < settings["warmup_runs"] else "benchmark"
         started_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
         # Only the target call is timed. Format exceptions after stopping the clock.
@@ -66,11 +66,28 @@ def collect(target, rows, benchmark_config, settings):
     return records
 
 
+def percentile(values, percent):
+    """Linear interpolation at index (n - 1) * percent / 100; empty -> None."""
+    if not 0 <= percent <= 100:
+        raise ValueError("Percentile must be between 0 and 100.")
+    if not values:
+        return None
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * percent / 100
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] + weight * (ordered[upper] - ordered[lower])
+
+
 def summarize(records):
     """Exclude warm-up explicitly; report failures alongside successful timings."""
-    measured = [r for r in records if r["phase"] == "measurement"]
+    # Accept earlier logs, but never silently mix different experiment series.
+    measured = [r for r in records if r["phase"] in ("benchmark", "measurement")]
     if not measured:
         raise ValueError("No measurement records.")
+    if len({r["run_id"] for r in records}) != 1:
+        raise ValueError("Summarize one run_id at a time.")
     successful = [r["duration_ms"] for r in measured if r["status"] == "success"]
     errors = len(measured) - len(successful)
     return {
@@ -84,6 +101,9 @@ def summarize(records):
         "execution_failure_rate_pct": 100 * errors / len(measured),
         "mean_success_ms": statistics.mean(successful) if successful else None,
         "median_success_ms": statistics.median(successful) if successful else None,
+        "p95_success_ms": percentile(successful, 95),
+        "p99_success_ms": percentile(successful, 99),
+        "percentile_method": "linear interpolation: index = (n - 1) * p / 100",
         "mean_all_outcomes_ms": statistics.mean(r["duration_ms"] for r in measured),
     }
 

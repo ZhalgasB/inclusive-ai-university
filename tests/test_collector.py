@@ -1,4 +1,4 @@
-"""Check warm-up exclusion, failure accounting and the real collector CLI. """
+"""Check warm-up exclusion, failure accounting and the real collector CLI."""
 
 import json
 from pathlib import Path
@@ -73,6 +73,7 @@ class CollectorTests(unittest.TestCase):
             settings[field] = value
             with self.assertRaises(ValueError):
                 validate_settings(settings)
+
     def test_cli_writes_jsonl_and_appends_distinct_runs(self):
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
