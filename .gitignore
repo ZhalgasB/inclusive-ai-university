@@ -38,6 +38,7 @@ tmp/
 # Large source data and model weights
 /data/raw/*
 !/data/raw/test_run.jsonl
+!/data/raw/load_run.jsonl
 /models/
 *.pt
 *.pth
