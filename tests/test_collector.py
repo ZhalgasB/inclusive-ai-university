@@ -12,7 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from collector import collect, summarize, validate_settings
+from collector import collect, percentile, summarize, validate_settings
 
 
 class CollectorTests(unittest.TestCase):
@@ -26,9 +26,11 @@ class CollectorTests(unittest.TestCase):
         with patch("collector.perf_counter_ns", side_effect=clock):
             records = collect(lambda *_: None, [], {}, self.settings())
         summary = summarize(records)
-        self.assertEqual([r["phase"] for r in records], ["warmup", "measurement", "measurement"])
+        self.assertEqual([r["phase"] for r in records], ["warmup", "benchmark", "benchmark"])
         self.assertEqual(summary["mean_success_ms"], 2)
         self.assertEqual(summary["measurement_runs"], 2)
+        self.assertAlmostEqual(summary["p95_success_ms"], 2.9)
+        self.assertAlmostEqual(summary["p99_success_ms"], 2.98)
 
     def test_failure_logged_and_next_call_runs(self):
         calls = []
@@ -47,6 +49,8 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(summary["execution_failure_rate_pct"], 50)
         self.assertEqual(summary["mean_success_ms"], 1)
         self.assertEqual(summary["mean_all_outcomes_ms"], 5)
+        self.assertEqual(summary["p95_success_ms"], 1)
+        self.assertEqual(summary["p99_success_ms"], 1)
 
     def test_all_errors_have_no_success_latency(self):
         def target(*_):
@@ -57,6 +61,32 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(summary["execution_failure_rate_pct"], 100)
         self.assertIsNone(summary["mean_success_ms"])
         self.assertIsNone(summary["median_success_ms"])
+        self.assertIsNone(summary["p95_success_ms"])
+        self.assertIsNone(summary["p99_success_ms"])
+
+    def test_percentile_known_values_and_boundaries(self):
+        self.assertEqual(percentile([50, 10, 30, 20, 40], 95), 48)
+        self.assertAlmostEqual(percentile([10, 20, 30, 40, 50], 99), 49.6)
+        self.assertEqual(percentile([10, 20], 0), 10)
+        self.assertEqual(percentile([10, 20], 100), 20)
+        self.assertEqual(percentile([7], 99), 7)
+        self.assertIsNone(percentile([], 95))
+        for percent in (-1, 101):
+            with self.assertRaises(ValueError):
+                percentile([1, 2], percent)
+
+    def test_summary_accepts_legacy_measurement_phase(self):
+        records = collect(lambda *_: None, [], {}, self.settings())
+        current = summarize(records)
+        legacy = [dict(r, phase="measurement") if r["phase"] == "benchmark" else r
+                  for r in records]
+        self.assertEqual(summarize(legacy), current)
+
+    def test_summary_rejects_mixed_run_ids(self):
+        records = collect(lambda *_: None, [], {}, self.settings(warmup=0))
+        records[1]["run_id"] = "another-series"
+        with self.assertRaisesRegex(ValueError, "one run_id"):
+            summarize(records)
 
     def test_keyboard_interrupt_is_not_swallowed(self):
         def target(*_):
@@ -86,10 +116,14 @@ class CollectorTests(unittest.TestCase):
             for _ in range(2):
                 result = subprocess.run(command, cwd=temp, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('"p95_success_ms":', result.stdout)
+                self.assertIn('"p99_success_ms":', result.stdout)
             records = [json.loads(line) for line in
                        (temp / "data/raw/test_run.jsonl").read_text().splitlines()]
             self.assertEqual(len(records), 6)
             self.assertEqual(len({r["run_id"] for r in records}), 2)
+            self.assertEqual(sum(r["phase"] == "warmup" for r in records), 2)
+            self.assertEqual(sum(r["phase"] == "benchmark" for r in records), 4)
             for record in records:
                 self.assertRegex(record["started_at_utc"], r"\.\d{6}\+00:00$")
                 self.assertGreaterEqual(record["duration_ms"], 0)
