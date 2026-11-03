@@ -95,7 +95,8 @@ class ProcessingTests(unittest.TestCase):
         original = self.log_path.read_bytes()
         script = Path(__file__).resolve().parents[1] / "src/process_data.py"
         result = subprocess.run(
-            [sys.executable, str(script), "--input", str(self.log_path)],
+            [sys.executable, str(script), "--input", str(self.log_path),
+             "--output-dir", str(Path(self.folder.name) / "processed")],
             cwd=self.folder.name, text=True, capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -9,11 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Cache dependency installation separately from project files.
+# Cache dependency installation separately from project files.docker run --rm --mount "type=bind,source=$($PWD.Path),target=/app" inclusive-ai-university python src/process_data.py
 COPY requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r /tmp/requirements.txt \
     && python -m pip check
-
 RUN useradd --create-home --uid 1000 researcher \
     && chown researcher:researcher /app
 
