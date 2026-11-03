@@ -36,7 +36,8 @@ secrets/
 tmp/
 
 # Large source data and model weights
-/data/raw/
+/data/raw/*
+!/data/raw/test_run.jsonl
 /models/
 *.pt
 *.pth
