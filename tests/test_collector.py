@@ -1,4 +1,4 @@
-"""Check warm-up exclusion, failure accounting and the real collector CLI."""
+"""Check warm-up exclusion, failure accounting and the real collector CLI. """
 
 import json
 from pathlib import Path
