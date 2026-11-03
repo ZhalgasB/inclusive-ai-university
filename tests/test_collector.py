@@ -73,28 +73,28 @@ class CollectorTests(unittest.TestCase):
             settings[field] = value
             with self.assertRaises(ValueError):
                 validate_settings(settings)
-def test_cli_writes_jsonl_and_appends_distinct_runs(self):
-    with tempfile.TemporaryDirectory() as directory:
-        temp = Path(directory)
-        (temp / "configs").mkdir()
-        settings = self.settings()
-        settings["benchmark_config"] = str(ROOT / "configs/config.json")
-        config_path = temp / "configs/collector.yaml"
-        config_path.write_text(yaml.safe_dump(settings), encoding="utf-8")
-        command = [sys.executable, str(ROOT / "src/collector.py"), "--config", str(config_path)]
-        for _ in range(2):
-            result = subprocess.run(command, cwd=temp, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-        records = [json.loads(line) for line in
-                   (temp / "data/raw/test_run.jsonl").read_text().splitlines()]
-        self.assertEqual(len(records), 6)
-        self.assertEqual(len({r["run_id"] for r in records}), 2)
-        for record in records:
-            self.assertRegex(record["started_at_utc"], r"\.\d{6}\+00:00$")
-            self.assertGreaterEqual(record["duration_ms"], 0)
-            self.assertEqual(record["input_records"], 😍
-            self.assertEqual(record["status"], "success")
+    def test_cli_writes_jsonl_and_appends_distinct_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            (temp / "configs").mkdir()
+            settings = self.settings()
+            settings["benchmark_config"] = str(ROOT / "configs/config.json")
+            config_path = temp / "configs/collector.yaml"
+            config_path.write_text(yaml.safe_dump(settings), encoding="utf-8")
+            command = [sys.executable, str(ROOT / "src/collector.py"), "--config", str(config_path)]
+            for _ in range(2):
+                result = subprocess.run(command, cwd=temp, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in
+                       (temp / "data/raw/test_run.jsonl").read_text().splitlines()]
+            self.assertEqual(len(records), 6)
+            self.assertEqual(len({r["run_id"] for r in records}), 2)
+            for record in records:
+                self.assertRegex(record["started_at_utc"], r"\.\d{6}\+00:00$")
+                self.assertGreaterEqual(record["duration_ms"], 0)
+                self.assertEqual(record["input_records"], 8)
+                self.assertEqual(record["status"], "success")
 
 
-            if name == "__main__":
-                unittest.main()
+if __name__ == "__main__":
+    unittest.main()
